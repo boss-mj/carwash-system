@@ -1,0 +1,1305 @@
+#:set PRIMARY_COLOR (0.0, 0.5, 0.9, 1)
+#:set TEXT_COLOR (1, 1, 1, 1)
+#:set BUTTON_BG (0.0, 0.3, 0.6, 1)
+#:set BTN1_BG (0.0, 0.3, 0.6, 1)
+#:set BTN2_BG (1.0, 0.6, 0.0, 1)
+
+<TapToStartScreen>:
+    name: "tapstart"
+    FloatLayout:
+
+        # 🔁 Background looping video
+        Video:
+            id: bg_video
+            source: "background.mp4"
+            state: "play"
+            options: {"eos": "loop"}
+            allow_stretch: True
+            keep_ratio: False
+            pos: self.pos
+            size: self.size
+            z: 0
+
+        # 🖼 Overlay design image
+        Image:
+            source: "tapstart_new.png"
+            allow_stretch: True
+            keep_ratio: False
+            pos: self.pos
+            size: self.size
+            z: 1
+
+        # ⚙ SETTINGS ICON – TOP RIGHT
+        Button:
+            id: settings_btn
+            size_hint: None, None
+            size: dp(90), dp(90)
+            pos_hint: {"right": 0.98, "top": 0.95}
+            background_normal: ""
+            background_down: ""
+            background_color: 0, 0, 0, 0
+            z: 999
+
+            on_release: app.root.ids.sm.current = "setting_list"
+
+            canvas.before:
+                Color:
+                    rgba: 1, 1, 1, 1
+                Rectangle:
+                    source: "icon_settings.png"
+                    size: dp(65), dp(65)
+                    pos: self.x + dp(12), self.y + dp(12)
+
+        # 🖱 FULLSCREEN TAP AREA – GOES TO MENU
+        Widget:
+            id: tap_area
+            size_hint: 1, 1
+            pos_hint: {"x": 0, "y": 0}
+
+            on_touch_down:
+                if not settings_btn.collide_point(*args[1].pos): root.manager.current = "menu"
+
+
+<ServiceLane>:
+    orientation: "vertical"
+    size_hint: None, None
+    size: 380, 345
+    canvas.before:
+        # 🖼️ Background image with rounded corners
+        RoundedRectangle:
+            pos: self.x + 10, self.y + 10     # move inward 10px from each side
+            size: self.width - 20, self.height - 20   # shrink by 10px on each edge
+            radius: [50]
+            source: "bg_box.png"  # <— your background image file here
+
+
+    # Box for labels (Title, time, coins)
+    FloatLayout:
+        size_hint_y: None
+        height: 100  # adjust depending on your layout height
+        Label:
+            text: "[b]" + root.service_type + "[/b]"
+            markup: True
+            font_size: "40sp"
+            font_name: "assets/ITC-BOLD"
+            bold: True
+            color: 0.012, 0.188, 0.412, 1.0
+            halign: "center"
+            valign: "middle"
+            text_size: self.size
+            pos_hint: {"center_x": 0.5, "y": 0.5}  # 👈 float higher or lower
+
+        Label:
+            text: "1 minute"
+            color: 0.0, 0.592, 0.698, 1.0
+            halign: "center"
+            valign: "middle"
+            font_size: "25sp"
+            pos_hint: {"center_x": 0.5, "y": 0.1}  # 👈 float higher or lower
+
+        Label:
+            id: coin_count
+            text: "[b]---[/b]"
+            markup: True
+            font_size: "25sp"
+            color: 0.0, 0.592, 0.698, 1.0
+            halign: "center"
+            valign: "middle"
+            text_size: self.size
+            pos_hint: {"center_x": 0.5, "y": -0.2}  # 👈 float higher or lower
+
+
+
+    # Buttons zone (Insert P5 + Start)
+    BoxLayout:
+        orientation: "horizontal"
+        spacing: 10
+        size_hint_y: None
+        height: 140
+        size_hint_x: None       # <— allow width to shrink to fit children
+        width: self.minimum_width  # <— make the box only as wide as its content
+        pos_hint: {"center_x": 0.51}  # <— center horizontally
+
+        # Insert Coin Button
+        HoverButton:
+            text: f"[b]Insert\n  P5[/b]"
+            markup: True
+            background_normal: ""
+            background_down: ""
+            background_color: 0, 0, 0, 0
+            size_hint_x: None    # disable auto width control
+            width: 161         # manually set width (can be "dp" or int)
+            height: 100         # optional: control height too
+            font_size: "30sp"
+            color: 1, 1, 1, 1
+            on_release:
+                root.show_popup()
+                root.do_action("INSERT_COIN")
+            canvas.before:
+                Color:
+                    rgba: self.bg_color_insert
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [15]
+
+        # Dynamic Start/Stop Button
+        HoverButton:
+            id: start_stop_btn
+            text: "[b]Start[/b]" if not app.is_lane_running(root.lane_key) else "[b]Stop[/b]"
+            markup: True
+            font_name: "assets/ITC-BOLD"
+            background_normal: ""
+            background_down: ""
+            background_color: 0, 0, 0, 0
+            size_hint_x: None
+            width: 161
+            height: 100
+            font_size: "35sp"
+            color: (1, 1, 1, 1) if app.is_lane_running(root.lane_key) else (0.012, 0.188, 0.412, 1.0)
+            on_release: app.toggle_lane(root.lane_key)
+
+            canvas.before:
+                Color:
+                    rgba: self.bg_color_start if app.is_lane_running(root.lane_key) else self.bg_color_start
+                    on_parent: self.parent.parent.color_instruction = self  # ✅ store the reference here
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [15]
+
+<MenuScreen>:
+    name: "menu"
+    FloatLayout:
+        # 🔁 Background looping video
+        Video:
+            id: bg_video
+            source: "background.mp4"
+            state: "play"
+            options: {"eos": "loop"}
+            allow_stretch: True
+            keep_ratio: False
+            volume: 0
+            pos: self.pos
+            size: self.size
+            z: 0
+
+        # Header Section
+        BoxLayout:
+            orientation: "vertical"
+            size_hint: 1, None
+            height: "150dp"
+            pos_hint: {"top": 0.75, "x": 0.019}
+            padding: [20, 10, 0, 0]
+            spacing: 50   # small gap between lines
+
+            Label:
+                text: "[b]MINUTE TO CLEAN IT[/b]"
+                markup: True
+                font_size: "130sp"
+                font_name: "assets/big-shoulders-display.bold"
+                color: 1, 1, 1, 1
+                halign: "left"
+                valign: "top"
+                text_size: self.width, None   # important fix
+                size_hint_y: None
+                height: self.texture_size[1]  # auto height based on text
+            Label:
+                text: ""
+
+            Label:
+                text: "Fast • Fun • Self-Service"
+                font_size: "50sp"
+                font_name: "assets/ITC-THIN"
+                color: 1, 1, 1, 1
+                halign: "left"
+                valign: "middle"
+                text_size: self.width, None
+                size_hint_y: None
+                height: self.texture_size[1]
+
+            Label:
+                text: "Stages:  Water  •  Foaming"
+                font_size: "50sp"
+                font_name: "assets/ITC-THIN"
+                color: 1, 1, 1, 1
+                halign: "left"
+                valign: "middle"
+                text_size: self.width, None
+                size_hint_y: None
+                height: self.texture_size[1]
+
+
+        # Service Selection and Live View
+        BoxLayout:
+            orientation: "horizontal"
+            size_hint: 0.9, 0.6
+            pos_hint: {"center_x": 0.46, "y": 0.28}
+            spacing: 10
+
+            # Each ServiceLane will now have equal spacing automatically
+            ServiceLane:
+                id: lane_left
+                lane_name: "LEFT LANE"
+                service_type: "WATER"
+                lane_key: "L"
+
+            ServiceLane:
+                id: lane_right
+                lane_name: "RIGHT LANE"
+                service_type: "FOAMING"
+                lane_key: "R"
+
+            # Status
+            FloatLayout:
+                size_hint: None, None
+                size: 380, 323
+                canvas.before:
+                    # 🖼️ Background image with rounded corners
+                    Color:
+                        rgba: 0.0, 0.592, 0.698, 1.0
+                    RoundedRectangle:
+                        pos: self.x + 10, self.y + 10     # move inward 10px from each side
+                        size: self.width - 20, self.height - 20   # shrink by 10px on each edge
+                        radius: [20]
+                        #source: "bg_box.png"  # <— your background image file here
+
+                # Box for labels (Title, time, coins)
+                Label:
+                    text: "[b]TIMER[/b]"
+                    markup: True
+                    font_size: "40sp"
+                    font_name: "assets/ITC-BOLD"
+                    bold: True
+                    color: 0.012, 0.188, 0.412, 1.0
+                    halign: "center"
+                    valign: "middle"
+                    text_size: self.size
+                    pos_hint: {"center_x": 0.5, "y": 0.24}  # 👈 float higher or lower
+
+
+                Label:
+                    text: "[b]Water:[/b]"
+                    markup: True
+                    font_size: "30sp"
+                    font_name: "assets/ITC-BOLD"
+                    bold: True
+                    color: 1,1,1,1
+                    halign: "center"
+                    valign: "middle"
+                    text_size: self.size
+                    pos_hint: {"center_x": 0.25, "y": 0.04}  # 👈 float higher or lower
+                Label:
+                    id: timer_label_water
+                    text: "[b]00.00[/b]"
+                    markup: True
+                    font_size: "30sp"
+                    font_name: "assets/ITC-BOLD"
+                    bold: True
+                    color: 1,1,1,1
+
+                    text_size: self.size
+                    pos_hint: {"center_x": 1.19, "y": 0.48}  # 👈 float higher or lower
+
+                Label:
+                    text: "[b]Foaming:[/b]"
+                    markup: True
+                    font_size: "30sp"
+                    font_name: "assets/ITC-BOLD"
+                    bold: True
+                    color: 1,1,1,1
+                    halign: "center"
+                    valign: "middle"
+                    text_size: self.size
+                    pos_hint: {"center_x": 0.3, "y": -0.23}  # 👈 float higher or lower
+                Label:
+                    id: timer_label_foaming
+                    text: "[b]00.00[/b]"
+                    markup: True
+                    font_size: "30sp"
+                    font_name: "assets/ITC-BOLD"
+                    bold: True
+                    color: 1,1,1,1
+                    halign: "center"
+                    valign: "middle"
+                    text_size: self.size
+                    pos_hint: {"center_x": 0.8, "y": -0.23}  # 👈 float higher or lower
+
+            # Right side (model)
+            FloatLayout:
+                size_hint_x: 0.2
+                # Frame title text
+                Label:
+
+                    markup: True
+                    font_size: "50sp"
+                    font_name: "assets/ITC-THIN"
+                    color: 0.012, 0.188, 0.412, 1.0
+                    size_hint: None, None
+                    size: self.texture_size
+                    pos_hint: {"center_x": 0.65, "y": 0.54}
+                    text_size: None, None
+                    halign: "left"
+                    valign: "top"
+
+
+            # In your MenuScreen section, update the always_play video:
+            FloatLayout:
+                size_hint: None, None
+                size: 380, 323
+                RelativeLayout:
+                    size_hint: (1.2, 1.2)
+                    pos_hint: {"center_x": 0.5, "center_y": 0.5}
+
+                    # --- VIDEO (background / content area) ---
+                    Video:
+                        id: always_play
+                        source: "always_play.mp4"
+                        allow_stretch: True
+                        keep_ratio: False
+                        size_hint: (1.34, 1)
+                        pos_hint: {"center_x": 0.46, "center_y": 0.45}
+                        state: "stop"  # Start as stopped, will be controlled by code
+                        options: {"eos": "loop"}  # Loop when playing
+
+                    # --- FRAME IMAGE (foreground overlay) ---
+                    Image:
+                        source: "shadow_vehicle.png"
+                        allow_stretch: True
+                        keep_ratio: False
+                        size_hint: (4, 2)
+                        pos_hint: {"center_x": 0.4, "center_y": 0.5}
+
+        # Bottom buttons
+        BoxLayout:
+            orientation: "horizontal"
+            size_hint: 0.3, None
+            height: 60
+            pos_hint: {"center_x": 0.25, "y": 0.1}
+
+            FloatLayout:
+                Button:
+                    background_normal: ""
+                    background_down: ""
+                    background_color: 0, 0, 0, 0
+                    size_hint: None, None
+                    size: 300, 60
+                    pos_hint: {"x": -0.42, "y": 0}
+                    on_release: app.root.ids.sm.current = "tapstart"
+
+
+                    canvas.before:
+                        Color:
+                            rgba: self.bg_color_home if hasattr(self, "bg_color_home") else (1, 1, 1, 1)
+                        RoundedRectangle:
+                            pos: self.pos
+                            size: self.size
+                            radius: [0, 25, 25, 0]
+
+                    HoverBoxLayout:
+                        orientation: "horizontal"
+                        spacing: 10
+                        padding: [100, 0, 10, 0]
+                        size: self.parent.size
+                        pos: self.parent.pos
+
+                        canvas.before:
+                            Color:
+                                rgba: (1, 1, 1, 1) if self.show_shadow else (1, 1, 1, 0)
+                            RoundedRectangle:
+                                pos: self.x, self.y
+                                size: self.width * 0.5, self.height
+                                source: "left_shadow.png"
+                                radius: [20, 0, 0, 20]
+
+                        Image:
+                            source: "switch_icon.png"
+                            size_hint: None, None
+                            size: 60, 60
+                            allow_stretch: True
+                            keep_ratio: True
+                            pos_hint: {"center_y": 0.5}
+
+                        Label:
+                            text: "[b]HOME[/b]"
+                            markup: True
+                            font_size: "28sp"
+                            font_name: "assets/big-shoulders-display.bold"
+                            color: 0.012, 0.188, 0.412, 1.0
+                            halign: "left"
+                            valign: "middle"
+                            text_size: self.size
+
+
+
+
+<ConfirmStopPopup>:
+    title: ""
+    size_hint: 0.65, 0.45
+    auto_dismiss: False
+    background_color: 0, 0, 0, 0
+    separator_height: 0
+
+    FloatLayout:
+        canvas.before:
+            Color:
+                rgba: 0, 0, 0, 0
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+        BoxLayout:
+            orientation: "vertical"
+            size_hint: None, None
+            size: root.width * 0.5, root.height * 0.9
+            pos_hint: {"center_x": 0.5, "center_y": 0.5}
+            spacing: 20
+            padding: 25
+
+            canvas.before:
+                Color:
+                    rgba: 0.0, 0.592, 0.698, 0.6
+                RoundedRectangle:
+                    radius: [25]
+                    pos: self.pos
+                    size: self.size
+
+            # 🧩 Main title
+            Label:
+                text: "Stop this lane?"
+                font_size: "60sp"
+                color: 1, 1, 1, 1
+                halign: "center"
+                valign: "middle"
+                text_size: self.size
+                font_name: "assets/big-shoulders-display.bold"
+
+            # ⚠️ Warning note below
+            Label:
+                text: "This will clear your time, including inserted credits."
+                font_size: "25sp"
+                color: 1, 1, 1, 1
+                halign: "center"
+                valign: "middle"
+                text_size: self.size
+                font_name: "assets/ITC-THIN"
+
+            # ✅ Buttons row
+            BoxLayout:
+                orientation: "horizontal"
+                spacing: 40
+                size_hint: None, None
+                width: self.minimum_width
+                height: 80
+                pos_hint: {"center_x": 0.5}  # <-- centers the whole row horizontally
+
+                HoverButton:
+                    text: "CANCEL"
+                    size_hint: None, None
+                    width: 200
+                    height: 70
+                    background_normal: ""
+                    background_down: ""
+                    background_color: 0, 0, 0, 0
+                    color: 1, 1, 1, 1
+                    font_size: "35sp"
+                    font_name: "assets/big-shoulders-display.bold"
+                    on_release: root.cancel()
+                    canvas.before:
+                        Color:
+                            rgba: 1.0, 0.6, 0.0, 1.0
+                        RoundedRectangle:
+                            pos: self.pos
+                            size: self.size
+                            radius: [30]
+
+                HoverButton:
+                    text: "OK"
+                    size_hint: None, None
+                    width: 200
+                    height: 70
+                    background_normal: ""
+                    background_down: ""
+                    background_color: 0, 0, 0, 0
+                    color: 0.012, 0.188, 0.412, 1.0
+                    font_size: "35sp"
+                    font_name: "assets/big-shoulders-display.bold"
+                    on_release: root.confirm()
+                    canvas.before:
+                        Color:
+                            rgba: 1, 1, 1, 1
+                        RoundedRectangle:
+                            pos: self.pos
+                            size: self.size
+                            radius: [30]
+
+
+
+<VideoScreen>:
+    name: "video"
+    FloatLayout:
+        Video:
+            id: intro_video
+            source: "intro_video.mp4"
+            allow_stretch: True
+            keep_ratio: False
+            size_hint: 1, 1
+
+#Insert Pop-Up
+<InsertCoinPopup>:
+    title: ""
+    size_hint: 0.65, 0.45
+    auto_dismiss: False
+    background_color: 0, 0, 0, 0
+    separator_height: 0
+
+    FloatLayout:
+        canvas.before:
+            Color:
+                rgba: 0, 0, 0, 0
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+        BoxLayout:
+            id:content_box
+            orientation: "vertical"
+            size_hint: None, None
+            size: root.width * 0.5, root.height * 0.9
+            pos_hint: {"center_x": 0.5, "center_y": 0.5}
+            spacing: 15
+            padding: 25
+
+            canvas.before:
+                Color:
+                    rgba: 0.0, 0.592, 0.698, 0.5
+                RoundedRectangle:
+                    radius: [25]
+                    pos: self.pos
+                    size: self.size
+
+        # ✅ Lane label (shows Water or Foaming)
+            Label:
+                id: lane_label
+                text: "Lane: ---"
+                font_size: "38sp"
+                color: 0.8, 0.95, 1, 1
+                halign: "center"
+                valign: "middle"
+                text_size: self.size
+                font_name: "assets/big-shoulders-display.bold"
+
+            Label:
+                text: "Please Insert Coin"
+                font_size: "60sp"
+                bold: True
+                color: 1, 1, 1, 1
+                halign: "center"
+                valign: "middle"
+                text_size: self.size
+                font_name: "assets/big-shoulders-display.bold"
+
+            # ✅ Coin count label
+            Label:
+                id: coin_label
+                text: "Credit's: 0"
+                font_size: "40sp"
+                color: 1, 1, 0.6, 1
+                halign: "center"
+                valign: "middle"
+                text_size: self.size
+                font_name: "assets/big-shoulders-display.bold"
+
+            Label:
+                id: countdown_label
+                text: "--"
+                font_size: "65sp"
+                color: 1,1,1,1
+                halign: "center"
+                valign: "middle"
+                text_size: self.size
+                font_name: "assets/big-shoulders-display.bold"
+
+            HoverButton:
+                text: "[b]FINISH[/b]"
+                markup: True
+                size_hint: None, None
+                width: 240
+                height: 75
+                pos_hint: {"center_x": 0.5}
+                background_normal: ""
+                background_down: ""
+                background_color: 0, 0, 0, 0
+                color: 0.012, 0.188, 0.412, 1.0
+                font_size: "32sp"
+                font_name: "assets/big-shoulders-display.bold"
+                bold: True
+                on_release: root.dismiss()
+
+                canvas.before:
+                    Color:
+                        rgba: self.bg_color_home
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.size
+                        radius: [35]
+<HoverButton>:
+    background_normal: ""
+    background_down: ""
+    background_color: 0, 0, 0, 0
+    color: 1, 1, 1, 1
+    font_size: '20sp'
+    font_name: "assets/big-shoulders-display.bold"
+    markup: True
+    size_hint_y: None
+    height: 80
+    canvas.before:
+        Color:
+            rgba: (0,0,0,0)  # or use one of your existing props if you like
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [15]
+
+
+<WifiScreen>:
+    name: "wifi"
+
+    FloatLayout:
+
+        # 🔁 BACKGROUND VIDEO MUST BE FIRST (BOTTOM LAYER)
+        Video:
+            id: bg_video
+            source: "background.mp4"
+            state: "play"
+            options: {"eos": "loop"}
+            allow_stretch: True
+            keep_ratio: False
+            volume: 0
+            pos: self.pos
+            size: self.size
+
+        # --- WIFI STATUS INDICATOR (TOP RIGHT) ---
+        Label:
+            id: wifi_status_label
+            text: root.wifi_status_text
+            markup: True
+            font_size: "40sp"
+            font_name: "assets/ITC-BOLD"
+            color: (0,1,0,1) if root.wifi_on else (1,0,0,1)
+            size_hint: None, None
+            size: dp(300), dp(80)
+            pos_hint: {"right": 0.98, "top": 0.92}
+            halign: "right"
+            valign: "middle"
+            text_size: self.size
+        HoverButton:
+            id: wifi_toggle_button
+            text: "[b]WIFI ON[/b]" if root.wifi_on else "[b]WIFI OFF[/b]"
+            markup: True
+            font_size: "24sp"
+            font_name: "assets/big-shoulders-display.bold"
+            background_normal: ""
+            background_down: ""
+            background_color: 0, 0, 0, 0
+            color:  (0.012, 0.188, 0.412, 1.0) if root.wifi_on else (0.012, 0.188, 0.412, 1.0)
+            size_hint: None, None
+            size: dp(150), dp(60)
+            pos_hint: {"right": 0.98, "top": 0.82}
+            on_release: root.toggle_wifi_button()
+
+            # 🚀 OVERRIDE GLOBAL HoverButton CANVAS
+            canvas.before:
+                Color:
+                    rgba: (1,1,1,1) if root.wifi_on else (0.9,0.2,0.2,1)
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [20]
+
+        # Header
+        BoxLayout:
+            orientation: "vertical"
+            size_hint: 1, None
+            height: "150dp"
+            pos_hint: {"top": 1, "x": 0.019}
+            padding: [20, 10, 0, 0]
+            spacing: 50
+
+            Label:
+                text: "[b]WI-FI SETTINGS[/b]"
+                markup: True
+                font_size: "130sp"
+                font_name: "assets/big-shoulders-display.bold"
+                color: 1, 1, 1, 1
+                halign: "left"
+                valign: "top"
+                text_size: self.width, None
+                size_hint_y: None
+                height: self.texture_size[1]
+
+        # Main Content Area
+        BoxLayout:
+            orientation: "vertical"
+            size_hint: 0.9, 0.6
+            pos_hint: {"center_x": 0.5, "center_y": 0.5}
+            spacing: 20
+            padding: 20
+
+            # --- Currently Connected ---
+            BoxLayout:
+                orientation: "horizontal"
+                size_hint_y: None
+                height: "60dp"
+                padding: [10, 0, 10, 0]
+
+                Label:
+                    id: current_network_label
+                    text: "[b]Connected:[/b] Checking..."
+                    markup: True
+                    font_size: "28sp"
+                    font_name: "assets/ITC-THIN"
+                    color: 1, 1, 1, 1
+                    halign: "center"
+                    valign: "middle"
+                    text_size: self.size
+
+            # -----------------------------
+            # AVAILABLE NETWORKS BOX
+            # -----------------------------
+            FloatLayout:
+                size_hint_y: 0.75
+
+                canvas.before:
+                    Color:
+                        rgba: 0.0, 0.592, 0.698, 0.8
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.size
+                        radius: [25]
+
+                # Title
+                Label:
+                    text: "[b]Available Networks[/b]"
+                    markup: True
+                    font_size: "40sp"
+                    font_name: "assets/big-shoulders-display.bold"
+                    color: 1,1,1,1
+                    size_hint_y: None
+                    height: dp(60)
+                    pos_hint: {"top": 0.98, "center_x": 0.5}
+
+                # Forget Button (centered)
+                HoverButton:
+                    text: "[b]FORGET CURRENT WI-FI[/b]"
+                    markup: True
+                    font_size: "26sp"
+                    font_name: "assets/big-shoulders-display.bold"
+                    size_hint: 0.65, None
+                    height: dp(55)
+                    pos_hint: {"center_x": 0.5, "top": 0.78}
+                    on_release: root.forget_network()
+                    background_normal: ""
+                    background_down: ""
+                    background_color: 0,0,0,0
+                    color: 1,1,1,1
+                    canvas.before:
+                        Color:
+                            rgba: 1,0.3,0.3,1
+                        RoundedRectangle:
+                            pos: self.pos
+                            size: self.size
+                            radius: [18]
+
+                # RecycleView (Networks List)
+                RecycleView:
+                    id: rv
+                    viewclass: "HoverButton"
+                    size_hint: 0.95, 0.58
+                    pos_hint: {"center_x": 0.5, "y": 0.04}
+
+                    RecycleBoxLayout:
+                        orientation: "vertical"
+                        spacing: 10
+                        default_size_hint: 1, None
+                        size_hint_y: None
+                        height: self.minimum_height
+                        padding: [10,10,10,10]
+
+                # ============================================================
+                #   EXIT BUTTON (BOTTOM CENTER)
+                # ============================================================
+                HoverButton:
+                    text: "[b]BACK[/b]"
+                    markup: True
+                    size_hint: None, None
+                    size: dp(150), dp(60)
+                    pos_hint: {"center_x": 0.5, "y": -0.2}
+                    font_size: "28sp"
+                    font_name: "assets/big-shoulders-display.bold"
+                    background_normal: ""
+                    background_down: ""
+                    background_color: 0,0,0,0
+                    color: 0.012, 0.188, 0.412, 1.0
+                    on_release: app.root.ids.sm.current = "setting_list"
+                    canvas.before:
+                        Color:
+                            rgba: 1,1,1,1
+                        RoundedRectangle:
+                            pos: self.pos
+                            size: self.size
+                            radius: [20]
+
+<WifiPasswordPopup>:
+    title: ""
+    size_hint: 0.65, 0.45
+    auto_dismiss: False
+    background_color: 0, 0, 0, 0
+    separator_height: 0
+
+    FloatLayout:
+        canvas.before:
+            Color:
+                rgba: 0, 0, 0, 0
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+        BoxLayout:
+            orientation: "vertical"
+            size_hint: None, None
+            size: root.width * 0.5, root.height * 0.9
+            pos_hint: {"center_x": 0.5, "center_y": 1}
+            spacing: 20
+            padding: 25
+
+            canvas.before:
+                Color:
+                    rgba: 0.0, 0.592, 0.698, 0.8
+                RoundedRectangle:
+                    radius: [25]
+                    pos: self.pos
+                    size: self.size
+
+            # Title
+            Label:
+                text: f"[b]Connect to {root.ssid}[/b]"
+                markup: True
+                font_size: "40sp"
+                font_name: "assets/big-shoulders-display.bold"
+                color: 1, 1, 1, 1
+                halign: "center"
+                valign: "middle"
+                text_size: self.size
+
+            # Password Input
+            BoxLayout:
+                orientation: "vertical"
+                size_hint_y: None
+                height: 80
+                spacing: 5
+
+                Label:
+                    id: status_label
+                    text: "Enter Wi-Fi Password:"
+                    font_size: "22sp"
+                    font_name: "assets/ITC-THIN"
+                    color: 1, 1, 1, 1
+                    halign: "left"
+                    size_hint_y: None
+                    height: 30
+
+                TextInput:
+                    id: password_input
+                    hint_text: "Password"
+                    password: False
+                    multiline: False
+                    size_hint_y: None
+                    height: 50
+                    font_size: "20sp"
+                    padding: [10, 10]
+                    background_color: 1, 1, 1, 1
+                    foreground_color: 0,0,0,1
+
+
+            # Status Label
+            Label:
+                id: status_label
+                text: ""
+                font_size: "18sp"
+                color: 1, 1, 1, 1
+                halign: "center"
+                valign: "middle"
+                text_size: self.size
+                size_hint_y: None
+                height: 30
+
+            # Buttons
+            BoxLayout:
+                orientation: "horizontal"
+                spacing: 20
+                size_hint_y: None
+                height: 70
+
+                HoverButton:
+                    text: "[b]EXIT[/b]"
+                    markup: True
+                    background_normal: ""
+                    background_down: ""
+                    background_color: 0, 0, 0, 0
+                    color: 1, 1, 1, 1
+                    font_size: "24sp"
+                    font_name: "assets/big-shoulders-display.bold"
+                    on_release: root.dismiss()
+                    canvas.before:
+                        Color:
+                            rgba: 1.0, 0.6, 0.0, 1.0
+                        RoundedRectangle:
+                            pos: self.pos
+                            size: self.size
+                            radius: [20]
+
+                HoverButton:
+                    text: "[b]CONNECT[/b]"
+                    markup: True
+                    background_normal: ""
+                    background_down: ""
+                    background_color: 0, 0, 0, 0
+                    color: 0.012, 0.188, 0.412, 1.0
+                    font_size: "24sp"
+                    font_name: "assets/big-shoulders-display.bold"
+                    on_release: root.connect()
+                    canvas.before:
+                        Color:
+                            rgba: 1, 1, 1, 1
+                        RoundedRectangle:
+                            pos: self.pos
+                            size: self.size
+                            radius: [20]
+
+<ArduinoErrorPopup>:
+    background: "assets/popup_bg.png"  # optional, reuse existing popup bg
+    auto_dismiss: False
+    BoxLayout:
+        orientation: "vertical"
+        spacing: dp(20)
+        padding: dp(20)
+        canvas.before:
+            Color:
+                rgba: 0.05, 0.1, 0.15, 0.96
+            RoundedRectangle:
+                radius: [20,]
+                pos: self.pos
+                size: self.size
+
+        Label:
+            text: "⚠️ Arduino Connection Lost"
+            font_size: "32sp"
+            bold: True
+            color: 1, 0.3, 0.3, 1
+            halign: "center"
+            valign: "middle"
+            text_size: self.size
+
+        Label:
+            text: "Please check the USB cable or restart the system."
+            font_size: "22sp"
+            color: 1, 1, 1, 1
+            halign: "center"
+            valign: "middle"
+            text_size: self.size
+
+        Button:
+            text: "OK"
+            size_hint_y: None
+            height: dp(60)
+            font_size: "24sp"
+            background_normal: ""
+            background_color: 0.0, 0.6, 0.8, 1
+            on_release: root.dismiss()
+
+<ArduinoDisconnectedPopup>:
+    title: ""
+    size_hint: 0.65, 0.45
+    auto_dismiss: False
+    background_color: 0, 0, 0, 0
+    separator_height: 0
+
+    FloatLayout:
+        canvas.before:
+            Color:
+                rgba: 0, 0, 0, 0
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+        BoxLayout:
+            orientation: "vertical"
+            size_hint: None, None
+            size: root.width * 0.5, root.height * 0.9
+            pos_hint: {"center_x": 0.5, "center_y": 0.5}
+            spacing: 15
+            padding: 25
+
+            canvas.before:
+                Color:
+                    rgba: 0.0, 0.592, 0.698, 0.5
+                RoundedRectangle:
+                    radius: [25]
+                    pos: self.pos
+                    size: self.size
+
+            Label:
+                text: "⚠️  Arduino Not Connected"
+                font_size: "60sp"
+                bold: True
+                color: 1, 0.4, 0.4, 1
+                halign: "center"
+                valign: "middle"
+                text_size: self.size
+                font_name: "assets/big-shoulders-display.bold"
+
+            Label:
+                text: "Please check the USB cable or reconnect the board."
+                font_size: "30sp"
+                color: 1, 1, 1, 1
+                halign: "center"
+                valign: "middle"
+                text_size: self.size
+                font_name: "assets/big-shoulders-display.bold"
+
+<SettingListScreen>:
+    name: "setting_list"
+
+    FloatLayout:
+
+        # Background video for consistency
+        Video:
+            source: "background.mp4"
+            state: "play"
+            options: {"eos": "loop"}
+            allow_stretch: True
+            keep_ratio: False
+            volume: 0
+            size: self.size
+            pos: self.pos
+
+        # Header
+        Label:
+            text: "[b]SETTINGS[/b]"
+            markup: True
+            font_size: "120sp"
+            font_name: "assets/big-shoulders-display.bold"
+            color: 1,1,1,1
+            size_hint: None, None
+            pos_hint: {"center_x": 0.5, "top": 0.95}
+
+        # Settings Options
+        BoxLayout:
+            orientation: "vertical"
+            size_hint: 0.6, 0.5
+            spacing: 25
+            pos_hint: {"center_x": 0.5, "center_y": 0.48}
+
+            # WIFI SETTINGS
+            HoverButton:
+                text: "[b]WI-FI SETTINGS[/b]"
+                font_size: "40sp"
+                size_hint_y: None
+                height: 100
+                on_release: app.root.ids.sm.current = "wifi"
+                canvas.before:
+                    Color:
+                        rgba: (1,1,1,1)
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.size
+                        radius: [25]
+                color: (0.012, 0.188, 0.412, 1)
+
+            # TIMER SETTINGS
+            HoverButton:
+                text: "[b]TIMER CONFIGURATION[/b]"
+                font_size: "40sp"
+                size_hint_y: None
+                height: 100
+                on_release: app.root.ids.sm.current = "timer_settings"
+                canvas.before:
+                    Color:
+                        rgba: (1,1,1,1)
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.size
+                        radius: [25]
+                color: (0.012, 0.188, 0.412, 1)
+
+        # Exit button
+        HoverButton:
+            text: "[b]EXIT[/b]"
+            size_hint: None, None
+            size: 200, 70
+            pos_hint: {"center_x": 0.5, "y": 0.05}
+            font_size: "32sp"
+            on_release: app.root.ids.sm.current = "tapstart"
+            canvas.before:
+                Color:
+                    rgba: 1,1,1,1
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [25]
+            color: (0.012, 0.188, 0.412, 1)
+
+
+<TimerSettingsScreen>:
+    name: "timer_settings"
+
+    FloatLayout:
+        Video:
+            source: "background.mp4"
+            state: "play"
+            options: {"eos": "loop"}
+            allow_stretch: True
+            keep_ratio: False
+            volume: 0
+            size: self.size
+            pos: self.pos
+
+        Label:
+            text: "[b]TIMER SETTINGS[/b]"
+            markup: True
+            font_size: "120sp"
+            font_name: "assets/big-shoulders-display.bold"
+            color: 1,1,1,1
+            pos_hint: {"center_x": 0.5, "top": 0.95}
+
+        # MAIN CONTENT
+        BoxLayout:
+            orientation: "vertical"
+            size_hint: 0.6, 0.55
+            pos_hint: {"center_x": 0.5, "center_y": 0.5}
+            spacing: 25
+
+            # WATER TIMER
+            BoxLayout:
+                orientation: "horizontal"
+                spacing: 20
+                size_hint_y: None
+                height: 90
+
+                Label:
+                    text: "Water Timer:"
+                    font_size: "40sp"
+                    font_name: "assets/ITC-BOLD"
+                    color: 1,1,1,1
+
+                Button:
+                    text: "-"
+                    font_size: "50sp"
+                    size_hint_x: None
+                    width: 80
+                    on_release: root.adjust_timer("L", -5)
+
+                Label:
+                    id: water_timer_value
+                    text: str(app.settings["water_timer"]) + "s"
+                    font_size: "45sp"
+                    color: 1,1,1,1
+
+                Button:
+                    text: "+"
+                    font_size: "50sp"
+                    size_hint_x: None
+                    width: 80
+                    on_release: root.adjust_timer("L", +5)
+
+            # FOAMING TIMER
+            BoxLayout:
+                orientation: "horizontal"
+                spacing: 20
+                size_hint_y: None
+                height: 90
+
+                Label:
+                    text: "Foaming Timer:"
+                    font_size: "40sp"
+                    font_name: "assets/ITC-BOLD"
+                    color: 1,1,1,1
+
+                Button:
+                    text: "-"
+                    font_size: "50sp"
+                    size_hint_x: None
+                    width: 80
+                    on_release: root.adjust_timer("R", -5)
+
+                Label:
+                    id: foaming_timer_value
+                    text: str(app.settings["foaming_timer"]) + "s"
+                    font_size: "45sp"
+                    color: 1,1,1,1
+
+                Button:
+                    text: "+"
+                    font_size: "50sp"
+                    size_hint_x: None
+                    width: 80
+                    on_release: root.adjust_timer("R", +5)
+
+        # SAVE BUTTON
+        HoverButton:
+            text: "[b]SAVE[/b]"
+            size_hint: None, None
+            size: 250, 80
+            pos_hint: {"center_x": 0.5, "y": 0.12}
+            font_size: "36sp"
+            on_release: root.save_settings()
+            canvas.before:
+                Color:
+                    rgba: 1, 1, 1, 1
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [25]
+            color: (0.012, 0.188, 0.412, 1)
+
+        # BACK button
+        HoverButton:
+            text: "[b]BACK[/b]"
+            size_hint: None, None
+            size: 200, 70
+            pos_hint: {"center_x": 0.5, "y": 0.05}
+            font_size: "32sp"
+            on_release: app.root.ids.sm.current = "setting_list"
+            canvas.before:
+                Color:
+                    rgba: 1,1,1,1
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [25]
+            color: (0.012, 0.188, 0.412, 1)
+
+
+<MainRoot>:
+    ScreenManager:
+        id: sm
+        current: "tapstart"
+
+        TapToStartScreen:
+            name: "tapstart"
+
+        MenuScreen:
+            name: "menu"
+
+        VideoScreen:
+            name: "video"
+
+        WifiScreen:
+            name: "wifi"
+
+        SettingListScreen:
+            name: "setting_list"
+
+        TimerSettingsScreen:
+            name: "timer_settings"
