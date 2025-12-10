@@ -1,9 +1,7 @@
 """
 Carwash Vendo Machine (Optimized for Raspberry Pi 4)
 ====================================================
-Original functionality preserved.
-All print() replaced with lightweight logging.
-Performance tuned for lower CPU load and smoother Kivy response.
+POWERED BY: VENDOPRO x SOLE DEVELOPEMENT
 """
 
 # --- Kivy Graphics Optimizations for Raspberry Pi 4 ---
@@ -58,6 +56,7 @@ from kivy.properties import (
 )
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.screenmanager import Screen
+from kivy.graphics import Color, RoundedRectangle
 
 # =======================================================
 #   FIX PYTHON 3.13 LOGGING + FIRESTORE CRASH
@@ -196,12 +195,36 @@ try:
 except ImportError:
     serial = None
 
+def detect_serial_port():
+    if platform.system() == "Windows":
+        return "COM3"
+    else:
+        # auto-detect first USB serial device
+        ports = glob.glob("/dev/ttyUSB*") + glob.glob("/dev/ttyACM*")
+        return ports[0] if ports else "/dev/ttyUSB0"
+
+# --------------------------
+# Constants
+# --------------------------
+
+SERIAL_PORT = detect_serial_port()
+BAUDRATE = 9600
+SERIAL_CHECK_INTERVAL = 0.05   # Less CPU usage
+
+ACCOUNT_DATA = "serviceAccountKey.json"
+DATA_FILE = "json_data/account_data.json"
+SETTINGS_FILE = "json_data/carwash_settings.json"
+DEFAULT_SETTINGS = {
+    "water_timer": 60,
+    "foaming_timer": 60
+}
+
 # --------------------------
 # Firebase Initialization (Safe)
 # --------------------------
 try:
     if not firebase_admin._apps:
-        cred = credentials.Certificate("serviceAccountKey.json")
+        cred = credentials.Certificate(ACCOUNT_DATA)
         firebase_admin.initialize_app(cred)
         db = firestore.client()
         safe_log("info","✅ Firebase initialized successfully.")
@@ -211,23 +234,25 @@ except Exception as e:
     safe_log("warning",f"⚠️ Firebase initialization failed: {e}")
     db = None  # allows app to run offline
 
-# --------------------------
-# Constants
-# --------------------------
 
-def detect_serial_port():
-    if platform.system() == "Windows":
-        return "COM3"
-    else:
-        # auto-detect first USB serial device
-        ports = glob.glob("/dev/ttyUSB*") + glob.glob("/dev/ttyACM*")
-        return ports[0] if ports else "/dev/ttyUSB0"
+def load_settings():
+    if not os.path.exists(SETTINGS_FILE):
+        save_settings(DEFAULT_SETTINGS)
+        return DEFAULT_SETTINGS
 
-SERIAL_PORT = detect_serial_port()
-BAUDRATE = 9600
-SERIAL_CHECK_INTERVAL = 0.05   # Less CPU usage
-DEFAULT_TIME_SECONDS = int(60) # 5 PESOS PER MINUTE
-DATA_FILE = "account_data.json"
+    try:
+        with open(SETTINGS_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return DEFAULT_SETTINGS
+
+def save_settings(data):
+    try:
+        with open(SETTINGS_FILE, "w") as f:
+            json.dump(data, f)
+        return True
+    except:
+        return False
 
 # Unique IDs (change per Raspberry Pi unit)
 OWNER_ID = get_device_id() # the Firebase Auth user ID of the machine owner
@@ -682,23 +707,6 @@ class ServiceLane(BoxLayout):
         popup = InsertCoinPopup(lane_key=self.lane_key)
         popup.open()
 
-# =====================================================
-#  Wi-Fi HELPER FUNCTIONS (MUST be above WifiScreen)
-# =====================================================
-
-# =====================================================
-#  Wi-Fi Password Popup (must be above WifiScreen)
-# =====================================================
-
-import platform, subprocess, shutil, os, tempfile, threading, time
-from kivy.clock import Clock, mainthread
-from kivy.uix.popup import Popup
-from kivy.uix.label import Label
-from kivy.uix.button import Button
-from kivy.uix.boxlayout import BoxLayout
-from kivy.graphics import Color, RoundedRectangle
-from kivy.properties import StringProperty, BooleanProperty
-from kivy.uix.screenmanager import Screen
 
 # ---------- OS DETECTION ----------
 def is_linux():
@@ -869,7 +877,6 @@ def forget_wifi(ssid):
     except Exception as e:
         return False, str(e)
 
-
 # ======================================================
 #   GET CURRENT SSID
 # ======================================================
@@ -895,7 +902,6 @@ def get_current_ssid():
         return "Not connected"
     except:
         return "Not connected"
-
 
 # ======================================================
 #   TOGGLE WIFI (ON/OFF)
@@ -952,7 +958,6 @@ class WifiPasswordPopup(Popup):
         self.ids.status_label.text = msg
         if ok:
             Clock.schedule_once(lambda dt: self.dismiss(), 1.2)
-
 
 class WifiScreen(Screen):
 
@@ -1063,6 +1068,54 @@ class WifiScreen(Screen):
         except Exception as e:
             print("Exit Wi-Fi error:", e)
 
+class SettingListScreen(Screen):
+    pass
+
+class TimerSettingsScreen(Screen):
+
+    def on_pre_enter(self):
+        app = App.get_running_app()
+
+        # Load current settings into temporary variables
+        self.temp_water = app.settings.get("water_timer", 60)
+        self.temp_foam = app.settings.get("foaming_timer", 60)
+
+        # Update UI
+        self.ids.water_timer_value.text = f"{self.temp_water}s"
+        self.ids.foaming_timer_value.text = f"{self.temp_foam}s"
+
+    def adjust_timer(self, lane_key, delta):
+        if lane_key == "L":
+            self.temp_water = max(10, min(300, self.temp_water + delta))
+            self.ids.water_timer_value.text = f"{self.temp_water}s"
+
+        else:
+            self.temp_foam = max(10, min(300, self.temp_foam + delta))
+            self.ids.foaming_timer_value.text = f"{self.temp_foam}s"
+
+    def save_settings(self):
+        """Save temp values to JSON + update app.settings"""
+        app = App.get_running_app()
+
+        # Update app settings
+        app.settings["water_timer"] = self.temp_water
+        app.settings["foaming_timer"] = self.temp_foam
+
+        # Save JSON
+        save_settings(app.settings)
+
+        safe_log("info", f"Timer settings saved: Water={self.temp_water}s, Foaming={self.temp_foam}s")
+
+        # OPTIONAL: Confirm popup
+        popup = Popup(
+            title="Saved",
+            content=Label(text="Timer settings updated successfully!"),
+            size_hint=(0.4, 0.25),
+        )
+        popup.open()
+
+        # Return to settings main page
+        Clock.schedule_once(lambda dt: setattr(app.root.ids.sm, "current", "timer_settings"), 0.5)
 
 class TapToStartScreen(Screen, InactivityMixin):
     pass
@@ -1082,6 +1135,10 @@ class ArduinoDisconnectedPopup(Popup):
         Clock.schedule_once(lambda dt: app.send_serial_command("BEEP_OFF"), 0.3)
 
 class MenuScreen(Screen,InactivityMixin):
+    def refresh_menu_after_timer_change(self):
+        app = App.get_running_app()
+        # No direct timer labels require update now, but this prevents stale UI bugs
+        safe_log("info", "Menu refreshed after timer update")
 
     def on_enter(self):
         # Start the always_play video when entering menu
@@ -1437,44 +1494,6 @@ class HoverBoxLayout(BoxLayout, HoverBehavior):
     def on_hover_leave(self):
         self.show_shadow = 1
 
-class HoldToWifiButton(Button):
-    """Home button: short tap → go home, long hold → open Wi-Fi setup."""
-    HOLD_TIME = 3  # seconds
-
-    def on_touch_down(self, touch):
-        if self.collide_point(*touch.pos):
-            # Prepare flags and start timer
-            self._wifi_opened = False
-            self._hold_ev = Clock.schedule_once(self._open_wifi_screen, self.HOLD_TIME)
-        return super().on_touch_down(touch)
-
-    def on_touch_up(self, touch):
-        # ✅ Ignore touches that are outside the button
-        if not self.collide_point(*touch.pos):
-            return super().on_touch_up(touch)
-
-        # Cancel the scheduled event if it exists
-        if hasattr(self, "_hold_ev") and self._hold_ev:
-            if not self._wifi_opened:
-                self.go_home()
-            self._hold_ev.cancel()
-
-        return super().on_touch_up(touch)
-
-    def go_home(self):
-        """Short tap → return to TapStart screen."""
-        app = App.get_running_app()
-        sm = app.root.ids.sm
-        if sm.has_screen("tapstart"):
-            sm.current = "tapstart"
-
-    def _open_wifi_screen(self, dt):
-        """Long hold → open Wi-Fi setup screen."""
-        self._wifi_opened = True  # prevent go_home on release
-        app = App.get_running_app()
-        sm = app.root.ids.sm
-        if sm.has_screen("wifi"):
-            sm.current = "wifi"
 
 class MainRoot(BoxLayout):
     pass
@@ -1524,6 +1543,7 @@ class LaneState:
 # --------------------------
 class CarwashApp(App):
     def build(self):
+        self.settings = load_settings()
         # ✅ Always defined — prevents crashes and allows rechecking anytime
         self.serial_port = None
         self.serial_alive = False
@@ -1557,6 +1577,21 @@ class CarwashApp(App):
         self.right_countdown_seconds = 0
 
         return self.root
+
+    def get_timer_for_lane(self, lane_key):
+        if lane_key == "L":
+            return self.settings.get("water_timer", 60)
+        else:
+            return self.settings.get("foaming_timer", 60)
+
+    def update_timer_setting(self, lane_key, seconds):
+        if lane_key == "L":
+            self.settings["water_timer"] = seconds
+        else:
+            self.settings["foaming_timer"] = seconds
+
+        save_settings(self.settings)
+
     def on_start(self):
         Clock.schedule_interval(lambda dt: wifi_keep_alive(), 10)
 
@@ -1780,37 +1815,40 @@ class CarwashApp(App):
             target = getattr(self, "last_interacted_lane", "L")
             lane = self.left_lane if target == "L" else self.right_lane
 
-            # ✅ Only count if lane is waiting for coin
+            # Only accept coins if popup is waiting
             if lane.pending_coin:
+
+                # Determine seconds per ₱5 based on lane settings
+                seconds_per_coin = self.get_timer_for_lane(target)
+
+                # Update lane credit & time
                 lane.coins += coin_value
-                lane.add_time(DEFAULT_TIME_SECONDS * (coin_value // 5))
+                time_added = seconds_per_coin * (coin_value // 5)
+                lane.add_time(time_added)
+
+                safe_log("info",
+                         f"💰 Coin inserted lane {target} +₱{coin_value} / +{time_added}s "
+                         f"(rate={seconds_per_coin}s per ₱5)"
+                         )
+
                 lane.wait_start = None
                 self.save_account_data(target, coin_value)
 
+                # Update popup if open
                 app = App.get_running_app()
                 popup = getattr(app, "active_popup", None)
-                app.refreshing_popup = True  # prevent relay off during update
+                app.refreshing_popup = True
 
-                # ✅ Update the existing popup live
                 if popup and isinstance(popup, InsertCoinPopup) and popup.lane_key == target:
                     Clock.schedule_once(lambda dt: self.update_popup_coin(popup), 0)
 
-                    # ✅ Ensure the UI redraws on the Pi GPU
-                    from kivy.base import EventLoop
-                    Clock.schedule_once(lambda dt: EventLoop.idle(), 0.05)
-                    Clock.schedule_once(lambda dt: popup.ids.coin_label.canvas.ask_update(), 0.1)
-
-                # ✅ Re-enable normal popup closing after refresh
                 Clock.schedule_once(lambda dt: setattr(app, "refreshing_popup", False), 0.3)
 
-                safe_log("info",
-                    f"💰 Coin inserted lane {target} +₱{coin_value} / +{DEFAULT_TIME_SECONDS * (coin_value // 5)}s"
-                )
-
-                # small debounce to avoid double pulses
+                # Debounce to avoid double count
                 Clock.schedule_once(lambda dt: setattr(lane, "pending_coin", True), 0.5)
+
             else:
-                safe_log("info",f"⚠️ Coin ignored — lane {target} not waiting for coin")
+                safe_log("info", f"⚠️ Coin ignored — lane {target} not waiting for coin")
 
     # --------------------------
     # Serial
